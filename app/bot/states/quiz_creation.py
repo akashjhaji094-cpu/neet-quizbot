@@ -1,0 +1,12 @@
+﻿"""Quiz creation state definitions."""
+
+from enum import Enum
+
+class QuizCreationState(str, Enum):
+    IDLE = "IDLE"
+    WAITING_TITLE = "WAITING_TITLE"
+    WAITING_DESCRIPTION = "WAITING_DESCRIPTION"
+    WAITING_QUESTIONS = "WAITING_QUESTIONS"
+    WAITING_TIMER = "WAITING_TIMER"
+    WAITING_SHUFFLE = "WAITING_SHUFFLE"
+    WAITING_MARKING = "WAITING_MARKING"
