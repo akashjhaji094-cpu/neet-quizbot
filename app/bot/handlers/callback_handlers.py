@@ -1,4 +1,4 @@
-﻿"""Inline callback query handlers."""
+"""Inline callback query handlers."""
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -83,30 +83,56 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             QuizService.set_shuffle(db, user.id, shuffle_q, shuffle_opt)
             quiz = QuizService.publish_draft(db, user.id)
 
-        if not quiz:
-            await chat.send_message("⚠️ Could not publish quiz. Please try again.")
-            return
+            if not quiz:
+                # If already published (e.g. user double-clicked), fetch most recent quiz
+                from app.database.repositories.user_repo import UserRepository
+                user_obj = UserRepository.get_by_telegram_id(db, user.id)
+                if user_obj:
+                    quizzes = QuizRepository.get_by_creator(db, user_obj.id)
+                    if quizzes and quizzes[0].status == "PUBLISHED":
+                        quiz = quizzes[0]
 
-        share_url = QuizService.generate_deep_link(bot_username, quiz.quiz_code)
-        timer_str = f"{quiz.timer_seconds} seconds" if quiz.timer_seconds > 0 else "No Timer"
+            if not quiz:
+                await chat.send_message("⚠️ Could not publish quiz. Please try again.")
+                return
+
+            quiz_title = quiz.title
+            quiz_code = quiz.quiz_code
+            timer_seconds = quiz.timer_seconds
+            shuffle_questions = quiz.shuffle_questions
+            shuffle_options = quiz.shuffle_options
+            correct_marks = int(quiz.correct_marks)
+            wrong_marks = int(quiz.wrong_marks)
+            unattempted_marks = int(quiz.unattempted_marks)
+            q_count = len(quiz.questions)
+
+        share_url = QuizService.generate_deep_link(bot_username, quiz_code)
+        timer_str = f"{timer_seconds} seconds" if timer_seconds > 0 else "No Timer"
 
         summary_text = t(
             "quiz_summary",
-            title=quiz.title,
-            count=len(quiz.questions),
+            title=quiz_title,
+            count=q_count,
             timer=timer_str,
-            shuffle_questions="Yes" if quiz.shuffle_questions else "No",
-            shuffle_options="Yes" if quiz.shuffle_options else "No",
-            correct_marks=int(quiz.correct_marks),
-            wrong_marks=int(quiz.wrong_marks),
-            unattempted_marks=int(quiz.unattempted_marks),
+            shuffle_questions="Yes" if shuffle_questions else "No",
+            shuffle_options="Yes" if shuffle_options else "No",
+            correct_marks=correct_marks,
+            wrong_marks=wrong_marks,
+            unattempted_marks=unattempted_marks,
             share_url=share_url
         )
 
-        await query.edit_message_text(
-            text=summary_text,
-            reply_markup=get_quiz_intro_keyboard(quiz.quiz_code)
-        )
+        try:
+            await query.edit_message_text(
+                text=summary_text,
+                reply_markup=get_quiz_intro_keyboard(quiz_code)
+            )
+        except Exception as e:
+            logger.warning(f"edit_message_text error (possibly identical content): {e}")
+            await chat.send_message(
+                text=summary_text,
+                reply_markup=get_quiz_intro_keyboard(quiz_code)
+            )
         return
 
     # 4. Start Quiz Attempt
@@ -145,12 +171,12 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 avg_score = round(sum(scores) / total_attempts, 2)
                 high_score = max(scores)
                 low_score = min(scores)
-            else:
-                avg_score = high_score = low_score = 0.0
+            total_questions = len(quiz.questions)
+            quiz_title = quiz.title
 
         stats_msg = (
-            f"📊 *Quiz Stats: {quiz.title}*\n\n"
-            f"Total Questions: {len(quiz.questions)}\n"
+            f"📊 *Quiz Stats: {quiz_title}*\n\n"
+            f"Total Questions: {total_questions}\n"
             f"Total Attempts: {total_attempts}\n"
             f"Average Score: {avg_score}\n"
             f"Highest Score: {high_score}\n"

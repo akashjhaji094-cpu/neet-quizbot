@@ -1,4 +1,4 @@
-﻿"""Quiz database model."""
+"""Quiz database model."""
 
 from datetime import datetime
 from typing import List, Optional
@@ -29,5 +29,5 @@ class Quiz(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     creator: Mapped["User"] = relationship("User", back_populates="quizzes")
-    questions: Mapped[List["Question"]] = relationship("Question", back_populates="quiz", order_by="Question.position", cascade="all, delete-orphan")
+    questions: Mapped[List["Question"]] = relationship("Question", back_populates="quiz", order_by="Question.position", cascade="all, delete-orphan", lazy="selectin")
     attempts: Mapped[List["QuizAttempt"]] = relationship("QuizAttempt", back_populates="quiz", cascade="all, delete-orphan")

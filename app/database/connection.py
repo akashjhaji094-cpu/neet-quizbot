@@ -1,4 +1,4 @@
-﻿"""Database engine and session management."""
+"""Database engine and session management."""
 
 from contextlib import contextmanager
 from typing import Generator
@@ -19,7 +19,7 @@ engine = create_engine(
     echo=settings.DEBUG
 )
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, expire_on_commit=False, bind=engine)
 
 
 def init_db() -> None:

@@ -1,4 +1,4 @@
-﻿"""Question database model."""
+"""Question database model."""
 
 from datetime import datetime
 from typing import List, Optional
@@ -36,4 +36,4 @@ class Question(Base):
     option_images: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     quiz: Mapped["Quiz"] = relationship("Quiz", back_populates="questions")
-    options: Mapped[List["Option"]] = relationship("Option", back_populates="question", order_by="Option.option_index", cascade="all, delete-orphan")
+    options: Mapped[List["Option"]] = relationship("Option", back_populates="question", order_by="Option.option_index", cascade="all, delete-orphan", lazy="selectin")
