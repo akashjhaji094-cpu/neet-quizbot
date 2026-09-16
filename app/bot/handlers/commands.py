@@ -3,6 +3,7 @@
 from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
+from app.config import settings
 from app.database.connection import get_db
 from app.database.repositories.user_repo import UserRepository
 from app.database.repositories.quiz_repo import QuizRepository
@@ -88,10 +89,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             first_name=user.first_name
         )
 
+    bot_user = await context.bot.get_me()
+    bot_username = bot_user.username or "akaxxh_bot"
+
     welcome_text = t("start_welcome")
     await chat.send_message(
         text=welcome_text,
-        reply_markup=get_start_keyboard()
+        reply_markup=get_start_keyboard(bot_username)
     )
 
 
@@ -247,26 +251,54 @@ async def quizzes_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /stats command to show creator statistics."""
+    """Handle /stats command to show creator or global bot statistics."""
     user = update.effective_user
     chat = update.effective_chat
     if not user or not chat:
         return
 
-    with get_db() as db:
-        stats = QuizService.get_creator_stats(db, user.id)
+    is_owner = (not settings.ADMIN_USER_IDS) or (user.id in settings.ADMIN_USER_IDS)
 
-    stats_text = (
-        "📊 *Creator Statistics*\n\n"
-        f"Total Quizzes: {stats['total_quizzes']}\n"
-        f"Total Questions: {stats['total_questions']}\n"
-        f"Total Attempts: {stats['total_attempts']}\n"
-        f"Average Score: {stats['average_score']}\n"
-        f"Highest Score: {stats['highest_score']}\n"
-        f"Lowest Score: {stats['lowest_score']}\n"
-        f"Average Percentage: {stats['average_percentage']}%\n"
-    )
-    await chat.send_message(text=stats_text, parse_mode=ParseMode.MARKDOWN)
+    with get_db() as db:
+        if is_owner:
+            from sqlalchemy import func
+            from app.database.models.user import User
+            from app.database.models.quiz import Quiz
+            from app.database.models.attempt import QuizAttempt
+            from app.database.models.group_quiz import GroupQuizSession, GroupQuizParticipant
+
+            total_groups = db.query(func.count(func.distinct(GroupQuizSession.chat_id))).scalar() or 0
+            total_users = db.query(func.count(User.id)).scalar() or 0
+            total_quizzes = db.query(func.count(Quiz.id)).scalar() or 0
+            indiv_attempts = db.query(func.count(QuizAttempt.id)).scalar() or 0
+            group_attempts = db.query(func.count(GroupQuizParticipant.id)).scalar() or 0
+            total_attempts = indiv_attempts + group_attempts
+
+            stats_text = (
+                "📊 *BOT STATISTICS*\n"
+                "━━━━━━━━━━━━━━━━━━━\n\n"
+                f"👥 *Total Groups ➔* {total_groups}\n"
+                f"👤 *Total Users ➔* {total_users}\n"
+                f"📝 *Total Quizzes ➔* {total_quizzes}\n"
+                f"🎯 *Total Attempts ➔* {total_attempts}\n\n"
+                "🚀 _Quiz Bot is growing fast!_\n"
+                "*Keep sharing & creating quizzes* 💡"
+            )
+            await chat.send_message(text=stats_text, parse_mode=ParseMode.MARKDOWN)
+        else:
+            stats = QuizService.get_creator_stats(db, user.id)
+            stats_text = (
+                "📊 *Creator Statistics*\n\n"
+                f"Total Quizzes: {stats['total_quizzes']}\n"
+                f"Total Questions: {stats['total_questions']}\n"
+                f"Total Attempts: {stats['total_attempts']}\n"
+                f"Average Score: {stats['average_score']}\n"
+                f"Highest Score: {stats['highest_score']}\n"
+                f"Lowest Score: {stats['lowest_score']}\n"
+                f"Average Percentage: {stats['average_percentage']}%\n\n"
+                "_(Global bot statistics are restricted to the bot owner)_"
+            )
+            await chat.send_message(text=stats_text, parse_mode=ParseMode.MARKDOWN)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -73,7 +73,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         )
         return
 
-    # 3. Shuffle Selection & Publishing
+    # 3. Shuffle Selection -> Prompt for Marking Scheme
     elif data.startswith("shuffle:"):
         mode = data.split(":", 1)[1]
         shuffle_q = mode in ("all", "questions")
@@ -81,10 +81,29 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
         with get_db() as db:
             QuizService.set_shuffle(db, user.id, shuffle_q, shuffle_opt)
+
+        from app.bot.keyboards.inline import get_marking_keyboard
+        await query.edit_message_text(
+            text="⚖️ *Choose the marking scheme for this quiz:*\n\n"
+                 "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
+                 "• *📝 General Marking*: +1 Correct, -1 Wrong, 0 Skipped\n"
+                 "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_marking_keyboard()
+        )
+        return
+
+    # 3b. Marking Selection & Publishing
+    elif data.startswith("marking:"):
+        parts = data.split(":")
+        correct = float(parts[1])
+        wrong = float(parts[2])
+
+        with get_db() as db:
+            QuizService.set_marking(db, user.id, correct, wrong, 0.0)
             quiz = QuizService.publish_draft(db, user.id)
 
             if not quiz:
-                # If already published (e.g. user double-clicked), fetch most recent quiz
                 from app.database.repositories.user_repo import UserRepository
                 user_obj = UserRepository.get_by_telegram_id(db, user.id)
                 if user_obj:
@@ -101,8 +120,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             timer_seconds = quiz.timer_seconds
             shuffle_questions = quiz.shuffle_questions
             shuffle_options = quiz.shuffle_options
-            correct_marks = int(quiz.correct_marks)
-            wrong_marks = int(quiz.wrong_marks)
+            correct_marks = int(quiz.correct_marks) if quiz.correct_marks.is_integer() else quiz.correct_marks
+            wrong_marks = int(quiz.wrong_marks) if quiz.wrong_marks.is_integer() else quiz.wrong_marks
             unattempted_marks = int(quiz.unattempted_marks)
             q_count = len(quiz.questions)
 
