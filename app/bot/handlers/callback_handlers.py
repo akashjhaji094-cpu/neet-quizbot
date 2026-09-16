@@ -125,17 +125,17 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         try:
             await query.edit_message_text(
                 text=summary_text,
-                reply_markup=get_quiz_intro_keyboard(quiz_code)
+                reply_markup=get_quiz_intro_keyboard(quiz_code, bot_username)
             )
         except Exception as e:
             logger.warning(f"edit_message_text error (possibly identical content): {e}")
             await chat.send_message(
                 text=summary_text,
-                reply_markup=get_quiz_intro_keyboard(quiz_code)
+                reply_markup=get_quiz_intro_keyboard(quiz_code, bot_username)
             )
         return
 
-    # 4. Start Quiz Attempt
+    # 4. Start Quiz Attempt (Private)
     elif data.startswith("start_attempt:"):
         quiz_code = data.split(":", 1)[1]
         with get_db() as db:
@@ -153,6 +153,29 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
         await chat.send_message("🚀 Starting your quiz attempt! Get ready...")
         await send_next_question(context, chat.id, user.id, attempt.id)
+        return
+
+    # 4b. Start Group Quiz Attempt
+    elif data.startswith("start_grp:"):
+        import asyncio
+        from app.services.group_quiz_service import GroupQuizService
+        from app.bot.handlers.group_quiz_handlers import deliver_group_question
+
+        quiz_code = data.split(":", 1)[1]
+        with get_db() as db:
+            session, status = GroupQuizService.get_or_create_session(db, quiz_code, chat.id)
+            if status != "SUCCESS" or not session:
+                await chat.send_message("⚠️ Could not start group quiz. It may have no questions or be unavailable.")
+                return
+            GroupQuizService.start_session(db, session.id)
+            session_id = session.id
+
+        await query.edit_message_text(
+            text="🚀 *Group Quiz is starting now!* First question coming up in 3 seconds...",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        await asyncio.sleep(3)
+        await deliver_group_question(context, chat.id, session_id)
         return
 
     # 5. Quiz Statistics

@@ -1,4 +1,4 @@
-﻿"""Telegram poll_answer update handler with idempotency and score evaluation."""
+"""Telegram poll_answer update handler with idempotency and score evaluation."""
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -28,6 +28,18 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
     selected_option_index = poll_answer.option_ids[0]
 
     with get_db() as db:
+        from app.services.group_quiz_service import GroupQuizService
+        handled_group = GroupQuizService.record_participant_answer(
+            db=db,
+            poll_id=poll_id,
+            user_id=user_id,
+            username=poll_answer.user.username,
+            first_name=poll_answer.user.first_name,
+            selected_option=selected_option_index
+        )
+        if handled_group:
+            return  # Answer recorded in active group quiz session!
+
         aq = AttemptRepository.get_attempt_question_by_poll_id(db, poll_id)
         if not aq:
             return

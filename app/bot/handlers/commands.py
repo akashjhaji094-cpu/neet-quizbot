@@ -1,4 +1,4 @@
-﻿"""Bot command handlers."""
+"""Bot command handlers."""
 
 from telegram import Update
 from telegram.constants import ParseMode
@@ -37,8 +37,26 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 return
 
             q_count = len(quiz.questions)
-            timer_text = f"{quiz.timer_seconds}s" if quiz.timer_seconds > 0 else "No Timer"
+            timer_text = f"{quiz.timer_seconds}s" if quiz.timer_seconds > 0 else "30s"
             description = quiz.description or "No description provided."
+
+            # If inside a Telegram Group / Supergroup
+            if chat.type in ["group", "supergroup"]:
+                from app.bot.keyboards.inline import get_group_intro_keyboard
+                group_text = (
+                    f"🎲 *Get ready for the quiz:*\n"
+                    f"*{quiz.title}*\n\n"
+                    f"📝 Questions: *{q_count}*\n"
+                    f"⏱ Timer: *{timer_text}* per question\n"
+                    f"⚖️ Marking: *+{int(quiz.correct_marks)}* correct, *{int(quiz.wrong_marks)}* wrong, *{int(quiz.unattempted_marks)}* skipped\n\n"
+                    f"Press the button below to start the quiz for everyone in this group!"
+                )
+                await chat.send_message(
+                    text=group_text,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=get_group_intro_keyboard(quiz.quiz_code)
+                )
+                return
 
             intro_text = t(
                 "participant_quiz_intro",
@@ -51,12 +69,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 timer=timer_text
             )
 
-            await chat.send_message(
-                text=intro_text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=get_quiz_intro_keyboard(quiz.quiz_code)
-            )
-            return
+        bot_user = await context.bot.get_me()
+        bot_username = bot_user.username or "akaxxh_bot"
+
+        await chat.send_message(
+            text=intro_text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_quiz_intro_keyboard(quiz.quiz_code, bot_username)
+        )
+        return
 
     # Standard /start welcome message
     with get_db() as db:

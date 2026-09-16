@@ -1,4 +1,4 @@
-﻿"""Inline keyboards for menus, settings, attempts, and results."""
+"""Inline keyboards for menus, settings, attempts, and results."""
 
 from typing import List, Optional
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -52,10 +52,21 @@ def get_shuffle_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_quiz_intro_keyboard(quiz_code: str, lang: str = "en") -> InlineKeyboardMarkup:
-    """Keyboard shown before starting a quiz attempt."""
+def get_quiz_intro_keyboard(quiz_code: str, bot_username: str = "", lang: str = "en") -> InlineKeyboardMarkup:
+    """Keyboard shown before starting a quiz attempt with option to start in group."""
+    clean_bot = bot_username.lstrip("@") if bot_username else "akaxxh_bot"
+    group_url = f"https://t.me/{clean_bot}?startgroup=quiz_{quiz_code}"
     keyboard = [
-        [InlineKeyboardButton(f"▶️ {t('btn_start_quiz', lang)}", callback_data=f"start_attempt:{quiz_code}")]
+        [InlineKeyboardButton(f"▶️ {t('btn_start_quiz', lang)}", callback_data=f"start_attempt:{quiz_code}")],
+        [InlineKeyboardButton(f"👥 {t('btn_share_group', lang)}", url=group_url)]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_group_intro_keyboard(quiz_code: str) -> InlineKeyboardMarkup:
+    """Keyboard shown in group before launching the quiz."""
+    keyboard = [
+        [InlineKeyboardButton("▶️ Start Quiz Now", callback_data=f"start_grp:{quiz_code}")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
