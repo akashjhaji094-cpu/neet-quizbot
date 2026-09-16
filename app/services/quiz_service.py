@@ -1,4 +1,4 @@
-﻿"""Quiz creation and management service."""
+"""Quiz creation and management service."""
 
 from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy.orm import Session
@@ -162,6 +162,29 @@ class QuizService:
             draft.quiz_id,
             shuffle_questions=shuffle_questions,
             shuffle_options=shuffle_options
+        )
+        return quiz
+
+    @staticmethod
+    def set_marking(
+        db: Session,
+        telegram_user_id: int,
+        correct_marks: float,
+        wrong_marks: float,
+        unattempted_marks: float = 0.0
+    ) -> Optional[Quiz]:
+        user = UserRepository.get_by_telegram_id(db, telegram_user_id)
+        if not user:
+            return None
+        draft = DraftRepository.get_by_user_id(db, user.id)
+        if not draft:
+            return None
+        quiz = QuizRepository.update_settings(
+            db,
+            draft.quiz_id,
+            correct_marks=correct_marks,
+            wrong_marks=wrong_marks,
+            unattempted_marks=unattempted_marks
         )
         return quiz
 

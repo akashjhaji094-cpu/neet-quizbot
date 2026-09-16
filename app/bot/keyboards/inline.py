@@ -5,36 +5,47 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from app.utils.localization import t
 
 
-def get_start_keyboard(lang: str = "en") -> InlineKeyboardMarkup:
-    """Home /start inline menu."""
+from app.config import settings
+
+
+def get_start_keyboard(bot_username: str = "", lang: str = "en") -> InlineKeyboardMarkup:
+    """Home /start inline menu matching the requested UI layout."""
+    clean_bot = (bot_username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
+    owner_link = f"https://t.me/{settings.OWNER_USERNAME.lstrip('@')}" if settings.OWNER_USERNAME else f"https://t.me/{clean_bot}"
+    support_link = settings.SUPPORT_URL or f"https://t.me/{clean_bot}"
+
     keyboard = [
-        [InlineKeyboardButton(t("btn_create_quiz", lang), callback_data="cmd:newquiz")],
-        [InlineKeyboardButton(t("btn_my_quizzes", lang), callback_data="cmd:quizzes")],
-        [InlineKeyboardButton(t("btn_help", lang), callback_data="cmd:help")]
+        [InlineKeyboardButton("➕ Add this bot to your group", url=f"https://t.me/{clean_bot}?startgroup=true")],
+        [InlineKeyboardButton("➕ Create New Quiz", callback_data="cmd:newquiz")],
+        [
+            InlineKeyboardButton("Owner ↗️", url=owner_link),
+            InlineKeyboardButton("Help ↗️", callback_data="cmd:help")
+        ],
+        [InlineKeyboardButton("Support ↗️", url=support_link)]
     ]
     return InlineKeyboardMarkup(keyboard)
 
 
 def get_timer_keyboard() -> InlineKeyboardMarkup:
-    """Timer selection keyboard per question."""
+    """Timer selection keyboard per question with 45s and minute formatting."""
     keyboard = [
         [
-            InlineKeyboardButton("5 seconds", callback_data="timer:5"),
             InlineKeyboardButton("10 seconds", callback_data="timer:10"),
-            InlineKeyboardButton("15 seconds", callback_data="timer:15")
+            InlineKeyboardButton("15 seconds", callback_data="timer:15"),
+            InlineKeyboardButton("20 seconds", callback_data="timer:20")
         ],
         [
-            InlineKeyboardButton("20 seconds", callback_data="timer:20"),
             InlineKeyboardButton("30 seconds", callback_data="timer:30"),
-            InlineKeyboardButton("60 seconds", callback_data="timer:60")
+            InlineKeyboardButton("45 seconds", callback_data="timer:45"),
+            InlineKeyboardButton("1 min", callback_data="timer:60")
         ],
         [
-            InlineKeyboardButton("90 seconds", callback_data="timer:90"),
-            InlineKeyboardButton("120 seconds", callback_data="timer:120"),
-            InlineKeyboardButton("180 seconds", callback_data="timer:180")
+            InlineKeyboardButton("1.5 min", callback_data="timer:90"),
+            InlineKeyboardButton("2 min", callback_data="timer:120"),
+            InlineKeyboardButton("3 min", callback_data="timer:180")
         ],
         [
-            InlineKeyboardButton("300 seconds", callback_data="timer:300"),
+            InlineKeyboardButton("5 min", callback_data="timer:300"),
             InlineKeyboardButton("No Timer", callback_data="timer:0")
         ]
     ]
@@ -48,6 +59,16 @@ def get_shuffle_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("❓ Shuffle Questions", callback_data="shuffle:questions")],
         [InlineKeyboardButton("🔤 Shuffle Options", callback_data="shuffle:options")],
         [InlineKeyboardButton("➡️ Don't Shuffle", callback_data="shuffle:none")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_marking_keyboard() -> InlineKeyboardMarkup:
+    """Marking scheme selection keyboard (+4/-1, +1/-1, +1/0)."""
+    keyboard = [
+        [InlineKeyboardButton("🎯 NEET Marking (+4 / -1)", callback_data="marking:4:-1")],
+        [InlineKeyboardButton("📝 General Marking (+1 / -1)", callback_data="marking:1:-1")],
+        [InlineKeyboardButton("✅ Simple Marking (+1 / 0)", callback_data="marking:1:0")]
     ]
     return InlineKeyboardMarkup(keyboard)
 
