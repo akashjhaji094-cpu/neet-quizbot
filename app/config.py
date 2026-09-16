@@ -1,4 +1,4 @@
-﻿"""Application configuration settings."""
+"""Application configuration settings."""
 
 import os
 from typing import List, Optional
@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     WEBHOOK_URL: Optional[str] = None
     PORT: int = 8000
     ADMIN_USER_IDS: List[int] = []
+    OWNER_USERNAME: Optional[str] = None
+    SUPPORT_URL: Optional[str] = None
     DEFAULT_LANGUAGE: str = "en"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
