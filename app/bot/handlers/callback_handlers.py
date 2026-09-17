@@ -63,20 +63,31 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     # 2. Timer Selection
     elif data.startswith("timer:"):
+        try:
+            await query.answer()
+        except Exception:
+            pass
         seconds = int(data.split(":", 1)[1])
         with get_db() as db:
             QuizService.set_timer(db, user.id, seconds)
 
         timer_display = f"{seconds} seconds" if seconds > 0 else "No Timer"
-        await query.edit_message_text(
-            text=f"⏱ Question timer set to: *{timer_display}*\n\n{t('shuffle_prompt')}",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_shuffle_keyboard()
-        )
+        try:
+            await query.edit_message_text(
+                text=f"⏱ Question timer set to: *{timer_display}*\n\n{t('shuffle_prompt')}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_shuffle_keyboard()
+            )
+        except Exception:
+            pass
         return
 
     # 3. Shuffle Selection -> Prompt for Marking Scheme
     elif data.startswith("shuffle:"):
+        try:
+            await query.answer()
+        except Exception:
+            pass
         mode = data.split(":", 1)[1]
         shuffle_q = mode in ("all", "questions")
         shuffle_opt = mode in ("all", "options")
@@ -85,18 +96,25 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             QuizService.set_shuffle(db, user.id, shuffle_q, shuffle_opt)
 
         from app.bot.keyboards.inline import get_marking_keyboard
-        await query.edit_message_text(
-            text="⚖️ *Choose the marking scheme for this quiz:*\n\n"
-                 "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
-                 "• *📝 General Marking*: +1 Correct, -1 Wrong, 0 Skipped\n"
-                 "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_marking_keyboard()
-        )
+        try:
+            await query.edit_message_text(
+                text="⚖️ *Choose the marking scheme for this quiz:*\n\n"
+                     "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *📝 General Marking*: +1 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_marking_keyboard()
+            )
+        except Exception:
+            pass
         return
 
     # 3b. Marking Selection & Publishing
     elif data.startswith("marking:"):
+        try:
+            await query.answer()
+        except Exception:
+            pass
         parts = data.split(":")
         correct = float(parts[1])
         wrong = float(parts[2])
@@ -119,6 +137,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
             quiz_title = quiz.title
             quiz_code = quiz.quiz_code
+            quiz_desc = quiz.description or ""
             timer_seconds = quiz.timer_seconds
             shuffle_questions = quiz.shuffle_questions
             shuffle_options = quiz.shuffle_options
@@ -126,6 +145,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             wrong_marks = int(quiz.wrong_marks) if quiz.wrong_marks.is_integer() else quiz.wrong_marks
             unattempted_marks = int(quiz.unattempted_marks)
             q_count = len(quiz.questions)
+            attempts_count = len(quiz.attempts) if quiz.attempts else 0
 
         timer_str = f"{timer_seconds} sec" if timer_seconds > 0 else "no timer"
         shuffle_str = "no shuffle"
@@ -136,8 +156,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         elif shuffle_options:
             shuffle_str = "shuffle options"
 
-        desc_block = f"{quiz.description}\n\n" if quiz.description else ""
-        attempts_str = f" {len(quiz.attempts)} people answered" if quiz.attempts else ""
+        desc_block = f"{quiz_desc}\n\n" if quiz_desc else ""
+        attempts_str = f" {attempts_count} people answered" if attempts_count > 0 else ""
         clean_bot = (bot_username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
 
         summary_text = (
@@ -258,6 +278,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
 
     # 5. Quiz Statistics
     elif data.startswith("stats:"):
+        try:
+            await query.answer()
+        except Exception:
+            pass
         quiz_code = data.split(":", 1)[1]
         with get_db() as db:
             quiz = QuizRepository.get_by_code(db, quiz_code)
@@ -272,6 +296,10 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 avg_score = round(sum(scores) / total_attempts, 2)
                 high_score = max(scores)
                 low_score = min(scores)
+            else:
+                avg_score = 0.0
+                high_score = 0.0
+                low_score = 0.0
             total_questions = len(quiz.questions)
             quiz_title = quiz.title
 
