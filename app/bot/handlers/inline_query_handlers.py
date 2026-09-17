@@ -61,6 +61,8 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
             attempts_count = len(quiz.attempts)
             answered_str = f" {attempts_count} people answered" if attempts_count > 0 else ""
 
+            from app.utils.branding import GLOBAL_PROMO_TEXT, get_promo_keyboard_row
+
             # Message content matching Image 1:
             # 🎲 Quiz 'NEET QUIZ BY ...'
             # [description]
@@ -68,14 +70,17 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
             message_text = (
                 f"🎲 *Quiz '{quiz.title}'*{answered_str}\n\n"
                 f"{desc_text}"
-                f"🖊 *{q_count} questions* · ⏱ *{timer_text}*"
+                f"🖊 *{q_count} questions* · ⏱ *{timer_text}*\n\n"
+                f"──────────────────\n"
+                f"{GLOBAL_PROMO_TEXT}"
             )
 
-            # Keyboard matching Image 1:
+            # Keyboard matching Image 1 with promo buttons:
             keyboard = [
                 [InlineKeyboardButton("Start this quiz", url=f"https://t.me/{clean_bot}?start=quiz_{quiz.quiz_code}")],
                 [InlineKeyboardButton("Start quiz in group", url=f"https://t.me/{clean_bot}?startgroup=quiz_{quiz.quiz_code}")],
-                [InlineKeyboardButton("Share quiz", switch_inline_query=f"quiz:{quiz.quiz_code}")]
+                [InlineKeyboardButton("Share quiz", switch_inline_query=f"quiz:{quiz.quiz_code}")],
+                get_promo_keyboard_row()
             ]
 
             result_id = hashlib.md5(f"{quiz.quiz_code}_{quiz.id}".encode()).hexdigest()

@@ -75,11 +75,13 @@ def get_marking_keyboard() -> InlineKeyboardMarkup:
 
 def get_quiz_intro_keyboard(quiz_code: str, bot_username: str = "", lang: str = "en") -> InlineKeyboardMarkup:
     """Keyboard shown before starting a quiz attempt with option to start in group."""
+    from app.utils.branding import get_promo_keyboard_row
     clean_bot = bot_username.lstrip("@") if bot_username else "akaxxh_bot"
     group_url = f"https://t.me/{clean_bot}?startgroup=quiz_{quiz_code}"
     keyboard = [
         [InlineKeyboardButton(f"▶️ {t('btn_start_quiz', lang)}", callback_data=f"start_attempt:{quiz_code}")],
-        [InlineKeyboardButton(f"👥 {t('btn_share_group', lang)}", url=group_url)]
+        [InlineKeyboardButton(f"👥 {t('btn_share_group', lang)}", url=group_url)],
+        get_promo_keyboard_row()
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -100,9 +102,11 @@ def get_quiz_created_keyboard(quiz_code: str, bot_username: str = "") -> InlineK
 
 def get_group_ready_keyboard(quiz_code: str, ready_count: int = 0) -> InlineKeyboardMarkup:
     """Ready button for group quiz starting flow with live participant count."""
+    from app.utils.branding import get_promo_keyboard_row
     label = f"✋ I'm ready! ({ready_count})" if ready_count > 0 else "✋ I'm ready!"
     keyboard = [
-        [InlineKeyboardButton(label, callback_data=f"grp_ready:{quiz_code}")]
+        [InlineKeyboardButton(label, callback_data=f"grp_ready:{quiz_code}")],
+        get_promo_keyboard_row()
     ]
     return InlineKeyboardMarkup(keyboard)
 
@@ -114,6 +118,7 @@ def get_group_intro_keyboard(quiz_code: str) -> InlineKeyboardMarkup:
 
 def get_quiz_result_keyboard(quiz_code: str, bot_username: str, lang: str = "en") -> InlineKeyboardMarkup:
     """Keyboard shown upon quiz completion."""
+    from app.utils.branding import get_promo_keyboard_row
     clean_bot = bot_username.lstrip("@")
     group_url = f"https://t.me/{clean_bot}?startgroup=quiz_{quiz_code}"
 
@@ -121,6 +126,7 @@ def get_quiz_result_keyboard(quiz_code: str, bot_username: str, lang: str = "en"
         [InlineKeyboardButton(f"🔄 {t('btn_try_again', lang)}", callback_data=f"start_attempt:{quiz_code}")],
         [InlineKeyboardButton("📤 Share quiz ↗️", switch_inline_query=f"quiz:{quiz_code}")],
         [InlineKeyboardButton(f"👥 {t('btn_share_group', lang)}", url=group_url)],
+        get_promo_keyboard_row(),
         [InlineKeyboardButton(f"🏠 {t('btn_back', lang)}", callback_data="cmd:start")]
     ]
     return InlineKeyboardMarkup(keyboard)
