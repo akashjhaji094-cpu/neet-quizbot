@@ -1,4 +1,4 @@
-﻿"""Tests for Quiz Creation flow, draft persistence, and commands."""
+"""Tests for Quiz Creation flow, draft persistence, and commands."""
 
 import pytest
 from app.services.quiz_service import QuizService
@@ -169,3 +169,75 @@ def test_publish_and_deep_link(db_session, creator_user):
 
     deep_link = QuizService.generate_deep_link("NeetQuizBot", published_quiz.quiz_code)
     assert deep_link == f"https://t.me/NeetQuizBot?start=quiz_{published_quiz.quiz_code}"
+
+
+def test_reply_keyboard_parsers():
+    """Verify timer, shuffle, and marking text parsers match button options."""
+    from app.bot.handlers.creation_handlers import (
+        parse_timer_text,
+        parse_shuffle_text,
+        parse_marking_text
+    )
+
+    # Timer parser
+    assert parse_timer_text("10 sec") == 10
+    assert parse_timer_text("15 sec") == 15
+    assert parse_timer_text("30 sec") == 30
+    assert parse_timer_text("45 sec") == 45
+    assert parse_timer_text("1 min") == 60
+    assert parse_timer_text("2 min") == 120
+    assert parse_timer_text("3 min") == 180
+    assert parse_timer_text("5 min") == 300
+    assert parse_timer_text("No Timer") == 0
+
+    # Shuffle parser
+    assert parse_shuffle_text("🔀 Shuffle All") == (True, True)
+    assert parse_shuffle_text("➡️ No Shuffle") == (False, False)
+    assert parse_shuffle_text("No Shuffle") == (False, False)
+    assert parse_shuffle_text("❓ Shuffle Questions") == (True, False)
+    assert parse_shuffle_text("🔤 Shuffle Options") == (False, True)
+
+    # Marking parser
+    assert parse_marking_text("🎯 NEET Marking (+4 / -1)") == (4.0, -1.0)
+    assert parse_marking_text("📝 General Marking (+1 / -1)") == (1.0, -1.0)
+    assert parse_marking_text("✅ Simple Marking (+1 / 0)") == (1.0, 0.0)
+
+
+def test_quiz_draft_step_states(db_session, creator_user):
+    """Verify draft states transition correctly from questions -> timer -> shuffle -> marking -> publish."""
+    QuizService.start_new_quiz(db_session, creator_user.telegram_user_id)
+    QuizService.set_title(db_session, creator_user.telegram_user_id, "State Transition Test")
+    QuizService.set_description(db_session, creator_user.telegram_user_id, "Test Desc")
+    QuestionService.add_native_poll_question(
+        db_session, creator_user.telegram_user_id, "Q1", ["A", "B"], 0
+    )
+
+    # Finish questions -> WAITING_TIMER
+    success, _ = QuizService.finish_questions(db_session, creator_user.telegram_user_id)
+    assert success is True
+    _, state1 = QuizService.get_active_draft_state(db_session, creator_user.telegram_user_id)
+    assert state1 == "WAITING_TIMER"
+
+    # Set timer -> WAITING_SHUFFLE
+    QuizService.set_timer(db_session, creator_user.telegram_user_id, 15)
+    _, state2 = QuizService.get_active_draft_state(db_session, creator_user.telegram_user_id)
+    assert state2 == "WAITING_SHUFFLE"
+
+    # Set shuffle -> WAITING_MARKING
+    QuizService.set_shuffle(db_session, creator_user.telegram_user_id, False, False)
+    _, state3 = QuizService.get_active_draft_state(db_session, creator_user.telegram_user_id)
+    assert state3 == "WAITING_MARKING"
+
+    # Set marking -> READY_TO_PUBLISH
+    QuizService.set_marking(db_session, creator_user.telegram_user_id, 4.0, -1.0, 0.0)
+    _, state4 = QuizService.get_active_draft_state(db_session, creator_user.telegram_user_id)
+    assert state4 == "READY_TO_PUBLISH"
+
+    # Publish
+    pub = QuizService.publish_draft(db_session, creator_user.telegram_user_id)
+    assert pub.status == "PUBLISHED"
+    assert pub.timer_seconds == 15
+    assert pub.shuffle_questions is False
+    assert pub.shuffle_options is False
+    assert pub.correct_marks == 4.0
+    assert pub.wrong_marks == -1.0

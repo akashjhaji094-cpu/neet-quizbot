@@ -1,18 +1,137 @@
-﻿"""Quiz creation flow handlers (title, description, pre-question media, native polls)."""
+"""Quiz creation flow handlers (title, description, pre-question media, native polls, step-by-step reply keyboard transitions)."""
 
-from telegram import Update
-from telegram.constants import PollType
+import re
+from typing import Tuple, Optional
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+from telegram.constants import ParseMode, PollType
 from telegram.ext import ContextTypes
+from app.config import settings
 from app.database.connection import get_db
 from app.services.quiz_service import QuizService
 from app.services.question_service import QuestionService
-from app.bot.keyboards.reply import get_create_question_keyboard, get_remove_keyboard
+from app.bot.keyboards.reply import (
+    get_create_question_keyboard,
+    get_timer_reply_keyboard,
+    get_shuffle_reply_keyboard,
+    get_marking_reply_keyboard,
+    get_remove_keyboard
+)
+from app.bot.keyboards.inline import get_quiz_created_keyboard
+from app.utils.branding import GLOBAL_PROMO_TEXT, get_promo_keyboard_row
 from app.utils.localization import t
 from app.utils.logger import logger
 
 
+def parse_timer_text(text: str) -> int:
+    """Parse timer seconds from reply keyboard button or user text."""
+    t_clean = text.lower().strip()
+    if "no" in t_clean or "none" in t_clean or "off" in t_clean:
+        return 0
+    digits = re.findall(r"\d+", t_clean)
+    if digits:
+        val = int(digits[0])
+        if "min" in t_clean:
+            return val * 60
+        return val
+    return 30
+
+
+def parse_shuffle_text(text: str) -> Tuple[bool, bool]:
+    """Parse shuffle options from reply keyboard button or user text."""
+    t_clean = text.lower().strip()
+    if "no shuffle" in t_clean or "don't" in t_clean or "none" in t_clean:
+        return False, False
+    if "question" in t_clean:
+        return True, False
+    if "option" in t_clean:
+        return False, True
+    return True, True  # Default: Shuffle All
+
+
+def parse_marking_text(text: str) -> Tuple[float, float]:
+    """Parse marking scheme from reply keyboard button or user text."""
+    t_clean = text.lower().strip()
+    if "general" in t_clean or "+1 / -1" in t_clean or "+1/-1" in t_clean:
+        return 1.0, -1.0
+    if "simple" in t_clean or "+1 / 0" in t_clean or "+1/0" in t_clean:
+        return 1.0, 0.0
+    return 4.0, -1.0  # Default NEET (+4 / -1)
+
+
+async def send_published_quiz_summary(chat, quiz, bot_username: str) -> None:
+    """
+    Clears the bottom reply keyboard and sends the official rich card matching Image 1.
+    """
+    # 1. Close and remove the bottom reply keyboard so normal chat keyboard opens up
+    try:
+        rm = await chat.send_message("✨ Quiz ready!", reply_markup=get_remove_keyboard())
+        await rm.delete()
+    except Exception:
+        pass
+
+    q_count = len(quiz.questions)
+    timer_str = f"{quiz.timer_seconds} sec" if quiz.timer_seconds > 0 else "no timer"
+    shuffle_str = "no shuffle"
+    if quiz.shuffle_questions and quiz.shuffle_options:
+        shuffle_str = "shuffle all"
+    elif quiz.shuffle_questions:
+        shuffle_str = "shuffle questions"
+    elif quiz.shuffle_options:
+        shuffle_str = "shuffle options"
+
+    attempts_count = len(quiz.attempts) if quiz.attempts else 0
+    attempts_str = f" {attempts_count} people answered" if attempts_count > 0 else ""
+
+    def escape_md(val: str) -> str:
+        if not val:
+            return ""
+        for c in ("_", "*", "`", "["):
+            val = val.replace(c, f"\\{c}")
+        return val
+
+    clean_bot = (bot_username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
+    safe_title = escape_md(quiz.title)
+    safe_desc = f"{escape_md(quiz.description)}\n\n" if quiz.description else ""
+    safe_link = f"t.me/{escape_md(clean_bot)}?start=quiz\\_{escape_md(quiz.quiz_code)}"
+
+    summary_text = (
+        "👍 *Quiz created.*\n\n"
+        f"*{safe_title}*{attempts_str}\n\n"
+        f"{safe_desc}"
+        f"🖊 *{q_count} questions* · ⏱ *{timer_str}* · ⬇️ *{shuffle_str}*\n\n"
+        "*External sharing link:*\n"
+        f"{safe_link}"
+    )
+
+    try:
+        await chat.send_message(
+            text=summary_text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_quiz_created_keyboard(quiz.quiz_code, bot_username)
+        )
+    except Exception as e:
+        logger.warning(f"send_published_quiz_summary markdown fallback: {e}")
+        plain_desc = f"{quiz.description}\n\n" if quiz.description else ""
+        plain_summary = (
+            "👍 Quiz created.\n\n"
+            f"{quiz.title}{attempts_str}\n\n"
+            f"{plain_desc}"
+            f"🖊 {q_count} questions · ⏱ {timer_str} · ⬇️ {shuffle_str}\n\n"
+            "External sharing link:\n"
+            f"t.me/{clean_bot}?start=quiz_{quiz.quiz_code}"
+        )
+        await chat.send_message(
+            text=plain_summary,
+            reply_markup=get_quiz_created_keyboard(quiz.quiz_code, bot_username)
+        )
+
+
 async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle text input during quiz creation (title, description, pre-question text)."""
+    """Handle text input during quiz creation (title, description, settings) and quiz share detection."""
     user = update.effective_user
     chat = update.effective_chat
     message = update.effective_message
@@ -20,9 +139,81 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     text = message.text.strip()
-    if text.startswith("/") and text != "/skip":
-        return  # Let command handlers process other slash commands
+    bot_user = await context.bot.get_me()
+    bot_username = (bot_user.username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
 
+    # 1. Detect if a user or group forwarded / typed a quiz code to share:
+    # e.g. "@akaxxh_bot quiz:EhCSIDrH", "quiz:EhCSIDrH", "quiz_EhCSIDrH", "/quiz EhCSIDrH"
+    share_code = None
+    lower_text = text.lower()
+    if lower_text.startswith(f"@{bot_username.lower()} quiz:") or lower_text.startswith("quiz:"):
+        share_code = text.split("quiz:", 1)[1].strip().split()[0]
+    elif lower_text.startswith(f"@{bot_username.lower()} quiz_") or lower_text.startswith("quiz_"):
+        share_code = text.split("quiz_", 1)[1].strip().split()[0]
+    elif lower_text.startswith("/quiz"):
+        parts = text.split(None, 1)
+        if len(parts) > 1:
+            share_code = parts[1].strip()
+
+    if share_code:
+        from app.database.repositories.quiz_repo import QuizRepository
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, share_code)
+            if quiz and quiz.status == "PUBLISHED":
+                q_count = len(quiz.questions)
+                timer_text = f"{quiz.timer_seconds} sec" if quiz.timer_seconds > 0 else "No Timer"
+                desc_text = f"{quiz.description}\n\n" if quiz.description else ""
+                attempts_count = len(quiz.attempts) if quiz.attempts else 0
+                answered_str = f" {attempts_count} people answered" if attempts_count > 0 else ""
+
+                card_text = (
+                    f"🎲 *Quiz '{quiz.title}'*{answered_str}\n\n"
+                    f"{desc_text}"
+                    f"🖊 *{q_count} questions* · ⏱ *{timer_text}*\n\n"
+                    f"──────────────────\n"
+                    f"{GLOBAL_PROMO_TEXT}"
+                )
+                keyboard = [
+                    [InlineKeyboardButton("Start this quiz", url=f"https://t.me/{bot_username}?start=quiz_{quiz.quiz_code}")],
+                    [InlineKeyboardButton("Start quiz in group ➕", url=f"https://t.me/{bot_username}?startgroup=quiz_{quiz.quiz_code}")],
+                    [InlineKeyboardButton("Share quiz ↗️", switch_inline_query=f"quiz:{quiz.quiz_code}")],
+                    get_promo_keyboard_row()
+                ]
+                await message.reply_text(
+                    text=card_text,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=InlineKeyboardMarkup(keyboard)
+                )
+                return
+
+    # Skip slash commands so standard command handlers process them
+    if text.startswith("/") and text != "/skip":
+        return
+
+    # 2. Universal reply buttons for creation flow
+    if text in ("🏁 Done", "Done"):
+        from app.bot.handlers.commands import done_command
+        await done_command(update, context)
+        return
+
+    if text in ("↩️ Undo", "Undo"):
+        from app.bot.handlers.commands import undo_command
+        await undo_command(update, context)
+        return
+
+    if text in ("❌ Cancel", "Cancel"):
+        from app.bot.handlers.commands import cancel_command
+        await cancel_command(update, context)
+        return
+
+    if text in ("➕ Create a question", "Create a question"):
+        await chat.send_message(
+            "Tap '➕ Create a question' below to compose a native Telegram quiz poll:",
+            reply_markup=get_create_question_keyboard()
+        )
+        return
+
+    # 3. Handle active quiz draft states
     with get_db() as db:
         quiz, state = QuizService.get_active_draft_state(db, user.id)
         if not quiz or not state:
@@ -55,6 +246,54 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
                 reply_markup=get_create_question_keyboard()
             )
             return
+
+        elif state == "WAITING_TIMER":
+            seconds = parse_timer_text(text)
+            QuizService.set_timer(db, user.id, seconds)
+            timer_display = f"{seconds} seconds" if seconds > 0 else "No Timer"
+            await chat.send_message(
+                text=f"⏱ Question timer set to: *{timer_display}*\n\n{t('shuffle_prompt')}",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_shuffle_reply_keyboard()
+            )
+            return
+
+        elif state == "WAITING_SHUFFLE":
+            shuffle_q, shuffle_opt = parse_shuffle_text(text)
+            QuizService.set_shuffle(db, user.id, shuffle_q, shuffle_opt)
+            await chat.send_message(
+                text="⚖️ *Choose the marking scheme for this quiz:*\n\n"
+                     "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *📝 General Marking*: +1 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_marking_reply_keyboard()
+            )
+            return
+
+        elif state == "WAITING_MARKING":
+            correct, wrong = parse_marking_text(text)
+            QuizService.set_marking(db, user.id, correct, wrong, 0.0)
+            published_quiz = QuizService.publish_draft(db, user.id)
+            if not published_quiz:
+                from app.database.repositories.quiz_repo import QuizRepository
+                from app.database.repositories.user_repo import UserRepository
+                user_obj = UserRepository.get_by_telegram_id(db, user.id)
+                if user_obj:
+                    quizzes = QuizRepository.get_by_creator(db, user_obj.id)
+                    if quizzes and quizzes[0].status == "PUBLISHED":
+                        published_quiz = quizzes[0]
+
+            if published_quiz:
+                await send_published_quiz_summary(chat, published_quiz, bot_username)
+            else:
+                await chat.send_message("⚠️ Could not publish quiz. Please try again.", reply_markup=get_remove_keyboard())
+            return
+
+
+async def handle_quiz_share_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /quiz <CODE> command."""
+    await handle_creation_text(update, context)
 
 
 async def handle_prequestion_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
