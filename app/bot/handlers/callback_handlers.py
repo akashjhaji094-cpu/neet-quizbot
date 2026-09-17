@@ -135,79 +135,13 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
                 await chat.send_message("⚠️ Could not publish quiz. Please try again.")
                 return
 
-            quiz_title = quiz.title
-            quiz_code = quiz.quiz_code
-            quiz_desc = quiz.description or ""
-            timer_seconds = quiz.timer_seconds
-            shuffle_questions = quiz.shuffle_questions
-            shuffle_options = quiz.shuffle_options
-            correct_marks = int(quiz.correct_marks) if quiz.correct_marks.is_integer() else quiz.correct_marks
-            wrong_marks = int(quiz.wrong_marks) if quiz.wrong_marks.is_integer() else quiz.wrong_marks
-            unattempted_marks = int(quiz.unattempted_marks)
-            q_count = len(quiz.questions)
-            attempts_count = len(quiz.attempts) if quiz.attempts else 0
-
-        timer_str = f"{timer_seconds} sec" if timer_seconds > 0 else "no timer"
-        shuffle_str = "no shuffle"
-        if shuffle_questions and shuffle_options:
-            shuffle_str = "shuffle all"
-        elif shuffle_questions:
-            shuffle_str = "shuffle questions"
-        elif shuffle_options:
-            shuffle_str = "shuffle options"
-
-        attempts_str = f" {attempts_count} people answered" if attempts_count > 0 else ""
-
-        def escape_md(text: str) -> str:
-            if not text:
-                return ""
-            for char in ("_", "*", "`", "["):
-                text = text.replace(char, f"\\{char}")
-            return text
-
-        clean_bot = (bot_username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
-        safe_title = escape_md(quiz_title)
-        safe_desc = f"{escape_md(quiz_desc)}\n\n" if quiz_desc else ""
-        safe_link = f"t.me/{escape_md(clean_bot)}?start=quiz\\_{escape_md(quiz_code)}"
-
-        summary_text = (
-            "👍 *Quiz created.*\n\n"
-            f"*{safe_title}*{attempts_str}\n\n"
-            f"{safe_desc}"
-            f"🖊 *{q_count} questions* · ⏱ *{timer_str}* · ⬇️ *{shuffle_str}*\n\n"
-            "*External sharing link:*\n"
-            f"{safe_link}"
-        )
-
         try:
-            await query.edit_message_text(
-                text=summary_text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=get_quiz_created_keyboard(quiz_code, bot_username)
-            )
-        except Exception as e:
-            logger.warning(f"edit_message_text error: {e}")
-            try:
-                await chat.send_message(
-                    text=summary_text,
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=get_quiz_created_keyboard(quiz_code, bot_username)
-                )
-            except Exception as e2:
-                logger.warning(f"send_message markdown error: {e2}")
-                plain_desc = f"{quiz_desc}\n\n" if quiz_desc else ""
-                plain_summary = (
-                    "👍 Quiz created.\n\n"
-                    f"{quiz_title}{attempts_str}\n\n"
-                    f"{plain_desc}"
-                    f"🖊 {q_count} questions · ⏱ {timer_str} · ⬇️ {shuffle_str}\n\n"
-                    "External sharing link:\n"
-                    f"t.me/{clean_bot}?start=quiz_{quiz_code}"
-                )
-                await chat.send_message(
-                    text=plain_summary,
-                    reply_markup=get_quiz_created_keyboard(quiz_code, bot_username)
-                )
+            await query.message.delete()
+        except Exception:
+            pass
+
+        from app.bot.handlers.creation_handlers import send_published_quiz_summary
+        await send_published_quiz_summary(chat, quiz, bot_username)
         return
 
     # 3c. Edit Quiz

@@ -15,7 +15,7 @@ from app.bot.keyboards.inline import (
     get_quiz_intro_keyboard,
     get_quiz_item_keyboard
 )
-from app.bot.keyboards.reply import get_remove_keyboard
+from app.bot.keyboards.reply import get_remove_keyboard, get_timer_reply_keyboard
 from app.utils.localization import t
 from app.utils.logger import logger
 
@@ -29,8 +29,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Check for deep-linking parameter
     args = context.args or []
-    if args and args[0].startswith("quiz_"):
-        quiz_code = args[0].replace("quiz_", "", 1)
+    if args and (args[0].startswith("quiz_") or args[0].startswith("quiz:")):
+        quiz_code = args[0].replace("quiz_", "", 1).replace("quiz:", "", 1)
         with get_db() as db:
             quiz = QuizRepository.get_by_code(db, quiz_code)
             if not quiz:
@@ -162,7 +162,7 @@ async def done_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await chat.send_message(
         text=t("timer_prompt"),
-        reply_markup=get_timer_keyboard()
+        reply_markup=get_timer_reply_keyboard()
     )
 
 
