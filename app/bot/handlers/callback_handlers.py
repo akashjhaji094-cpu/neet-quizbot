@@ -156,6 +156,8 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         elif shuffle_options:
             shuffle_str = "shuffle options"
 
+        attempts_str = f" {attempts_count} people answered" if attempts_count > 0 else ""
+
         def escape_md(text: str) -> str:
             if not text:
                 return ""
