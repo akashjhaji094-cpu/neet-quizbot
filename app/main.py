@@ -70,7 +70,7 @@ def main() -> None:
         logger.info("Starting in Long-Polling mode...")
         application.run_polling(
             drop_pending_updates=True,
-            allowed_updates=["message", "poll", "poll_answer", "callback_query"]
+            allowed_updates=["message", "poll", "poll_answer", "callback_query", "inline_query"]
         )
 
 

@@ -1,4 +1,4 @@
-﻿"""Bot handlers package export."""
+"""Bot handlers package export."""
 
 from app.bot.handlers.commands import (
     start_command,
@@ -19,6 +19,7 @@ from app.bot.handlers.creation_handlers import (
 )
 from app.bot.handlers.poll_answer_handlers import handle_poll_answer
 from app.bot.handlers.callback_handlers import handle_callback_query
+from app.bot.handlers.inline_query_handlers import handle_inline_query
 
 __all__ = [
     "start_command",
@@ -35,5 +36,6 @@ __all__ = [
     "handle_prequestion_media",
     "handle_native_poll_received",
     "handle_poll_answer",
-    "handle_callback_query"
+    "handle_callback_query",
+    "handle_inline_query"
 ]
