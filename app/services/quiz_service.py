@@ -163,6 +163,8 @@ class QuizService:
             shuffle_questions=shuffle_questions,
             shuffle_options=shuffle_options
         )
+        draft.state = "WAITING_MARKING"
+        db.flush()
         return quiz
 
     @staticmethod
@@ -186,6 +188,8 @@ class QuizService:
             wrong_marks=wrong_marks,
             unattempted_marks=unattempted_marks
         )
+        draft.state = "READY_TO_PUBLISH"
+        db.flush()
         return quiz
 
     @staticmethod

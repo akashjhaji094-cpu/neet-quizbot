@@ -26,6 +26,7 @@ from app.bot.handlers import (
     handle_creation_text,
     handle_prequestion_media,
     handle_native_poll_received,
+    handle_quiz_share_command,
     handle_poll_answer,
     handle_callback_query,
     handle_inline_query
@@ -63,6 +64,7 @@ def create_bot_application() -> Application:
     app.add_handler(CommandHandler("newquiz", newquiz_command))
     app.add_handler(CommandHandler("quizzes", quizzes_command))
     app.add_handler(CommandHandler("myquizzes", quizzes_command))
+    app.add_handler(CommandHandler("quiz", handle_quiz_share_command))
     app.add_handler(CommandHandler("undo", undo_command))
     app.add_handler(CommandHandler("done", done_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
