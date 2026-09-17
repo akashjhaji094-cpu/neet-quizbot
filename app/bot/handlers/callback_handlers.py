@@ -10,7 +10,9 @@ from app.services.attempt_service import AttemptService
 from app.bot.keyboards.inline import (
     get_shuffle_keyboard,
     get_quiz_result_keyboard,
-    get_quiz_intro_keyboard
+    get_quiz_intro_keyboard,
+    get_quiz_created_keyboard,
+    get_group_ready_keyboard
 )
 from app.bot.keyboards.reply import get_remove_keyboard
 from app.bot.handlers.quiz_handlers import send_next_question
@@ -125,33 +127,46 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             unattempted_marks = int(quiz.unattempted_marks)
             q_count = len(quiz.questions)
 
-        share_url = QuizService.generate_deep_link(bot_username, quiz_code)
-        timer_str = f"{timer_seconds} seconds" if timer_seconds > 0 else "No Timer"
+        timer_str = f"{timer_seconds} sec" if timer_seconds > 0 else "no timer"
+        shuffle_str = "no shuffle"
+        if shuffle_questions and shuffle_options:
+            shuffle_str = "shuffle all"
+        elif shuffle_questions:
+            shuffle_str = "shuffle questions"
+        elif shuffle_options:
+            shuffle_str = "shuffle options"
 
-        summary_text = t(
-            "quiz_summary",
-            title=quiz_title,
-            count=q_count,
-            timer=timer_str,
-            shuffle_questions="Yes" if shuffle_questions else "No",
-            shuffle_options="Yes" if shuffle_options else "No",
-            correct_marks=correct_marks,
-            wrong_marks=wrong_marks,
-            unattempted_marks=unattempted_marks,
-            share_url=share_url
+        desc_block = f"{quiz.description}\n\n" if quiz.description else ""
+        attempts_str = f" {len(quiz.attempts)} people answered" if quiz.attempts else ""
+        clean_bot = (bot_username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
+
+        summary_text = (
+            "👍 *Quiz created.*\n\n"
+            f"*{quiz_title}*{attempts_str}\n\n"
+            f"{desc_block}"
+            f"🖊 *{q_count} questions* · ⏱ *{timer_str}* · ⬇️ *{shuffle_str}*\n\n"
+            "*External sharing link:*\n"
+            f"t.me/{clean_bot}?start=quiz_{quiz_code}"
         )
 
         try:
             await query.edit_message_text(
                 text=summary_text,
-                reply_markup=get_quiz_intro_keyboard(quiz_code, bot_username)
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_quiz_created_keyboard(quiz_code, bot_username)
             )
         except Exception as e:
-            logger.warning(f"edit_message_text error (possibly identical content): {e}")
+            logger.warning(f"edit_message_text error: {e}")
             await chat.send_message(
                 text=summary_text,
-                reply_markup=get_quiz_intro_keyboard(quiz_code, bot_username)
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_quiz_created_keyboard(quiz_code, bot_username)
             )
+        return
+
+    # 3c. Edit Quiz
+    elif data.startswith("edit_quiz:"):
+        await query.answer("✏️ To edit this quiz or create a new one, send /newquiz.", show_alert=True)
         return
 
     # 4. Start Quiz Attempt (Private)
@@ -174,26 +189,70 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await send_next_question(context, chat.id, user.id, attempt.id)
         return
 
-    # 4b. Start Group Quiz Attempt
-    elif data.startswith("start_grp:"):
+    # 4b. Start Group Quiz Attempt with "I'm ready!" and Live Countdown
+    elif data.startswith("grp_ready:") or data.startswith("start_grp:"):
         import asyncio
         from app.services.group_quiz_service import GroupQuizService
         from app.bot.handlers.group_quiz_handlers import deliver_group_question
 
         quiz_code = data.split(":", 1)[1]
+        chat_data = context.chat_data
+        ready_users = chat_data.setdefault(f"ready_{quiz_code}", set())
+        ready_users.add(user.id)
+        ready_count = len(ready_users)
+
+        # Update ready button count on message
+        try:
+            await query.edit_message_reply_markup(
+                reply_markup=get_group_ready_keyboard(quiz_code, ready_count)
+            )
+        except Exception:
+            pass
+
+        # If countdown already initiated in this group, just acknowledge
+        if chat_data.get(f"countdown_{quiz_code}"):
+            await query.answer(f"✋ You are ready! ({ready_count} participants ready)", show_alert=False)
+            return
+
+        # Start countdown immediately with first ready person
+        chat_data[f"countdown_{quiz_code}"] = True
+        await query.answer("✋ You are ready! Starting countdown...", show_alert=False)
+
         with get_db() as db:
             session, status = GroupQuizService.get_or_create_session(db, quiz_code, chat.id)
             if status != "SUCCESS" or not session:
+                chat_data[f"countdown_{quiz_code}"] = False
                 await chat.send_message("⚠️ Could not start group quiz. It may have no questions or be unavailable.")
                 return
             GroupQuizService.start_session(db, session.id)
             session_id = session.id
+            quiz_obj = session.quiz
+            quiz_title = quiz_obj.title if quiz_obj else "Quiz"
 
-        await query.edit_message_text(
-            text="🚀 *Group Quiz is starting now!* First question coming up in 3 seconds...",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        await asyncio.sleep(3)
+        # 3.. 2.. 1.. Live Countdown
+        for remaining in [3, 2, 1]:
+            try:
+                await query.edit_message_text(
+                    text=f"🎲 *Get ready for the quiz: {quiz_title}*\n\n"
+                         f"🚀 *{len(ready_users)} participant(s) ready!*\n\n"
+                         f"⏱ *The quiz will begin in {remaining}...*",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+
+        try:
+            await query.edit_message_text(
+                text=f"🎲 *Quiz: {quiz_title}*\n\n🚀 *Starting now! Good luck to all participants!*",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception:
+            pass
+
+        await asyncio.sleep(1)
+        chat_data[f"countdown_{quiz_code}"] = False
+        chat_data[f"ready_{quiz_code}"] = set()
         await deliver_group_question(context, chat.id, session_id)
         return
 

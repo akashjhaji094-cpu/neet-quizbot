@@ -43,19 +43,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
             # If inside a Telegram Group / Supergroup
             if chat.type in ["group", "supergroup"]:
-                from app.bot.keyboards.inline import get_group_intro_keyboard
+                from app.bot.keyboards.inline import get_group_ready_keyboard
+                desc_text = f"\n{quiz.description}\n" if quiz.description else ""
                 group_text = (
                     f"🎲 *Get ready for the quiz:*\n"
-                    f"*{quiz.title}*\n\n"
-                    f"📝 Questions: *{q_count}*\n"
-                    f"⏱ Timer: *{timer_text}* per question\n"
-                    f"⚖️ Marking: *+{int(quiz.correct_marks)}* correct, *{int(quiz.wrong_marks)}* wrong, *{int(quiz.unattempted_marks)}* skipped\n\n"
-                    f"Press the button below to start the quiz for everyone in this group!"
+                    f"*{quiz.title}*\n"
+                    f"{desc_text}\n"
+                    f"🖊 *{q_count} questions* · ⏱ *{timer_text}* per question\n"
+                    f"⚖️ Marking: *+{int(quiz.correct_marks)}* correct, *{int(quiz.wrong_marks)}* wrong\n\n"
+                    f"Tap the button below when you are ready!"
                 )
                 await chat.send_message(
                     text=group_text,
                     parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=get_group_intro_keyboard(quiz.quiz_code)
+                    reply_markup=get_group_ready_keyboard(quiz.quiz_code, 0)
                 )
                 return
 
