@@ -1,4 +1,4 @@
-﻿"""Group Quiz execution, poll dispatching, and leaderboard display."""
+"""Group Quiz execution, poll dispatching, and leaderboard display."""
 
 import asyncio
 from telegram.constants import ParseMode, PollType
@@ -142,11 +142,17 @@ async def send_group_leaderboard(
             f"   ⏱ Avg Time: {r['avg_time']}s\n"
         )
 
-    lines.append(f"👥 Total Participants: {total_participants}")
+    from telegram import InlineKeyboardMarkup
+    from app.utils.branding import GLOBAL_PROMO_TEXT, get_promo_keyboard_row
+
+    lines.append(f"👥 Total Participants: {total_participants}\n")
+    lines.append("──────────────────")
+    lines.append(GLOBAL_PROMO_TEXT)
     leaderboard_text = "\n".join(lines)
 
     await context.bot.send_message(
         chat_id=chat_id,
         text=leaderboard_text,
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup([get_promo_keyboard_row()])
     )

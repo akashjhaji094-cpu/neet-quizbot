@@ -1,4 +1,4 @@
-﻿"""Participant quiz execution, poll delivery, and final results handlers."""
+"""Participant quiz execution, poll delivery, and final results handlers."""
 
 from telegram.constants import ParseMode, PollType
 from telegram.ext import ContextTypes
@@ -159,6 +159,9 @@ async def send_quiz_results(
             max_score=int(score_res.max_score) if score_res.max_score.is_integer() else score_res.max_score,
             percentage=score_res.percentage
         )
+
+        from app.utils.branding import GLOBAL_PROMO_TEXT
+        card_text = f"{card_text}\n\n──────────────────\n{GLOBAL_PROMO_TEXT}"
 
         quiz_code = quiz.quiz_code
 
