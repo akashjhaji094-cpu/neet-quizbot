@@ -199,7 +199,7 @@ def test_reply_keyboard_parsers():
 
     # Marking parser
     assert parse_marking_text("🎯 NEET Marking (+4 / -1)") == (4.0, -1.0)
-    assert parse_marking_text("📝 General Marking (+1 / -1)") == (1.0, -1.0)
+    assert parse_marking_text("🏥 NORCET Marking (+1 / -0.33)") == (1.0, -0.33)
     assert parse_marking_text("✅ Simple Marking (+1 / 0)") == (1.0, 0.0)
 
 
@@ -241,3 +241,51 @@ def test_quiz_draft_step_states(db_session, creator_user):
     assert pub.shuffle_options is False
     assert pub.correct_marks == 4.0
     assert pub.wrong_marks == -1.0
+
+
+def test_norcet_marking_publish(db_session, creator_user):
+    """Verify quiz published with NORCET marking (+1, -0.33)."""
+    QuizService.start_new_quiz(db_session, creator_user.telegram_user_id)
+    QuizService.set_title(db_session, creator_user.telegram_user_id, "NORCET Nursing Exam")
+    QuizService.set_description(db_session, creator_user.telegram_user_id, None)
+    QuestionService.add_native_poll_question(db_session, creator_user.telegram_user_id, "Q1", ["A", "B"], 0)
+    QuizService.finish_questions(db_session, creator_user.telegram_user_id)
+    QuizService.set_timer(db_session, creator_user.telegram_user_id, 30)
+    QuizService.set_shuffle(db_session, creator_user.telegram_user_id, True, True)
+    QuizService.set_marking(db_session, creator_user.telegram_user_id, 1.0, -0.33, 0.0)
+    quiz = QuizService.publish_draft(db_session, creator_user.telegram_user_id)
+    assert quiz.correct_marks == 1.0
+    assert quiz.wrong_marks == -0.33
+
+
+def test_edit_published_quiz(db_session, creator_user):
+    """Verify creator can update title, description, timer, shuffle, marking."""
+    QuizService.start_new_quiz(db_session, creator_user.telegram_user_id)
+    QuizService.set_title(db_session, creator_user.telegram_user_id, "Original Title")
+    QuizService.set_description(db_session, creator_user.telegram_user_id, "Original Desc")
+    QuestionService.add_native_poll_question(db_session, creator_user.telegram_user_id, "Q1", ["A", "B"], 0)
+    QuizService.finish_questions(db_session, creator_user.telegram_user_id)
+    QuizService.set_timer(db_session, creator_user.telegram_user_id, 15)
+    QuizService.set_shuffle(db_session, creator_user.telegram_user_id, False, False)
+    QuizService.set_marking(db_session, creator_user.telegram_user_id, 4.0, -1.0, 0.0)
+    quiz = QuizService.publish_draft(db_session, creator_user.telegram_user_id)
+
+    # Edit fields directly on quiz in repo
+    quiz.title = "Updated Title"
+    quiz.description = "Updated Desc"
+    quiz.timer_seconds = 45
+    quiz.shuffle_questions = True
+    quiz.shuffle_options = True
+    quiz.correct_marks = 1.0
+    quiz.wrong_marks = -0.33
+    db_session.commit()
+    db_session.refresh(quiz)
+
+    updated = QuizRepository.get_by_code(db_session, quiz.quiz_code)
+    assert updated.title == "Updated Title"
+    assert updated.description == "Updated Desc"
+    assert updated.timer_seconds == 45
+    assert updated.shuffle_questions is True
+    assert updated.shuffle_options is True
+    assert updated.correct_marks == 1.0
+    assert updated.wrong_marks == -0.33

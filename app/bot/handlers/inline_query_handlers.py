@@ -6,7 +6,8 @@ from telegram import (
     InlineQueryResultArticle,
     InputTextMessageContent,
     InlineKeyboardButton,
-    InlineKeyboardMarkup
+    InlineKeyboardMarkup,
+    LinkPreviewOptions
 )
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
@@ -91,7 +92,8 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
                     description=f"{q_count} questions · {timer_text}",
                     input_message_content=InputTextMessageContent(
                         message_text=message_text,
-                        parse_mode=ParseMode.MARKDOWN
+                        parse_mode=ParseMode.MARKDOWN,
+                        link_preview_options=LinkPreviewOptions(is_disabled=True)
                     ),
                     reply_markup=InlineKeyboardMarkup(keyboard)
                 )

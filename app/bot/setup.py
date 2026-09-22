@@ -21,9 +21,11 @@ from app.bot.handlers import (
     cancel_command,
     stop_command,
     help_command,
+    support_command,
     lang_command,
     stats_command,
     handle_creation_text,
+    handle_skip_command,
     handle_prequestion_media,
     handle_native_poll_received,
     handle_quiz_share_command,
@@ -43,9 +45,11 @@ async def setup_bot_commands(application: Application) -> None:
         BotCommand("undo", "Undo last question"),
         BotCommand("done", "Finish quiz creation"),
         BotCommand("cancel", "Cancel current quiz creation"),
+        BotCommand("skip", "Skip quiz description"),
         BotCommand("stop", "Stop active session"),
         BotCommand("lang", "Change language"),
         BotCommand("help", "About this bot and scoring rules"),
+        BotCommand("support", "Support channel and assistance"),
         BotCommand("stats", "View your creator statistics")
     ]
     try:
@@ -65,11 +69,13 @@ def create_bot_application() -> Application:
     app.add_handler(CommandHandler("quizzes", quizzes_command))
     app.add_handler(CommandHandler("myquizzes", quizzes_command))
     app.add_handler(CommandHandler("quiz", handle_quiz_share_command))
+    app.add_handler(CommandHandler("skip", handle_skip_command))
     app.add_handler(CommandHandler("undo", undo_command))
     app.add_handler(CommandHandler("done", done_command))
     app.add_handler(CommandHandler("cancel", cancel_command))
     app.add_handler(CommandHandler("stop", stop_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("support", support_command))
     app.add_handler(CommandHandler("lang", lang_command))
     app.add_handler(CommandHandler("stats", stats_command))
 

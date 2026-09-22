@@ -9,11 +9,13 @@ from app.bot.handlers.commands import (
     cancel_command,
     stop_command,
     help_command,
+    support_command,
     lang_command,
     stats_command
 )
 from app.bot.handlers.creation_handlers import (
     handle_creation_text,
+    handle_skip_command,
     handle_prequestion_media,
     handle_native_poll_received,
     handle_quiz_share_command
@@ -31,9 +33,11 @@ __all__ = [
     "cancel_command",
     "stop_command",
     "help_command",
+    "support_command",
     "lang_command",
     "stats_command",
     "handle_creation_text",
+    "handle_skip_command",
     "handle_prequestion_media",
     "handle_native_poll_received",
     "handle_quiz_share_command",
