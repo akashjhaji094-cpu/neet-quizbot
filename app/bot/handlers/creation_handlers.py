@@ -5,7 +5,8 @@ from typing import Tuple, Optional
 from telegram import (
     Update,
     InlineKeyboardButton,
-    InlineKeyboardMarkup
+    InlineKeyboardMarkup,
+    LinkPreviewOptions
 )
 from telegram.constants import ParseMode, PollType
 from telegram.ext import ContextTypes
@@ -55,8 +56,8 @@ def parse_shuffle_text(text: str) -> Tuple[bool, bool]:
 def parse_marking_text(text: str) -> Tuple[float, float]:
     """Parse marking scheme from reply keyboard button or user text."""
     t_clean = text.lower().strip()
-    if "general" in t_clean or "+1 / -1" in t_clean or "+1/-1" in t_clean:
-        return 1.0, -1.0
+    if "norcet" in t_clean or "0.33" in t_clean or "-0.33" in t_clean:
+        return 1.0, -0.33
     if "simple" in t_clean or "+1 / 0" in t_clean or "+1/0" in t_clean:
         return 1.0, 0.0
     return 4.0, -1.0  # Default NEET (+4 / -1)
@@ -111,7 +112,8 @@ async def send_published_quiz_summary(chat, quiz, bot_username: str) -> None:
         await chat.send_message(
             text=summary_text,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_quiz_created_keyboard(quiz.quiz_code, bot_username)
+            reply_markup=get_quiz_created_keyboard(quiz.quiz_code, bot_username),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
     except Exception as e:
         logger.warning(f"send_published_quiz_summary markdown fallback: {e}")
@@ -126,7 +128,8 @@ async def send_published_quiz_summary(chat, quiz, bot_username: str) -> None:
         )
         await chat.send_message(
             text=plain_summary,
-            reply_markup=get_quiz_created_keyboard(quiz.quiz_code, bot_username)
+            reply_markup=get_quiz_created_keyboard(quiz.quiz_code, bot_username),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
 
 
@@ -175,16 +178,41 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
                 )
                 keyboard = [
                     [InlineKeyboardButton("Start this quiz", url=f"https://t.me/{bot_username}?start=quiz_{quiz.quiz_code}")],
-                    [InlineKeyboardButton("Start quiz in group ➕", url=f"https://t.me/{bot_username}?startgroup=quiz_{quiz.quiz_code}")],
-                    [InlineKeyboardButton("Share quiz ↗️", switch_inline_query=f"quiz:{quiz.quiz_code}")],
+                    [InlineKeyboardButton("Start quiz in group", url=f"https://t.me/{bot_username}?startgroup=quiz_{quiz.quiz_code}")],
+                    [InlineKeyboardButton("Share quiz", switch_inline_query=f"quiz:{quiz.quiz_code}")],
                     get_promo_keyboard_row()
                 ]
                 await message.reply_text(
                     text=card_text,
                     parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=InlineKeyboardMarkup(keyboard)
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
                 return
+
+    # Check if user is editing title or description of an existing quiz
+    if context.user_data.get("editing_quiz_code"):
+        quiz_code = context.user_data.pop("editing_quiz_code")
+        field = context.user_data.pop("editing_field", None)
+        from app.database.repositories.quiz_repo import QuizRepository
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if quiz and quiz.creator.telegram_id == user.id:
+                if field == "title":
+                    quiz.title = text
+                    db.commit()
+                    db.refresh(quiz)
+                    await chat.send_message(f"✅ Title updated to: *{quiz.title}*", parse_mode=ParseMode.MARKDOWN)
+                    await send_published_quiz_summary(chat, quiz, bot_username)
+                    return
+                elif field == "desc":
+                    new_desc = None if text.strip().lower() in ("/skip", "skip") else text.strip()
+                    quiz.description = new_desc
+                    db.commit()
+                    db.refresh(quiz)
+                    await chat.send_message("✅ Description updated!", parse_mode=ParseMode.MARKDOWN)
+                    await send_published_quiz_summary(chat, quiz, bot_username)
+                    return
 
     # Skip slash commands so standard command handlers process them
     if text.startswith("/") and text != "/skip":
@@ -225,7 +253,7 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
             return
 
         elif state == "WAITING_DESCRIPTION":
-            description = None if text.lower() == "/skip" else text
+            description = None if text.strip().lower() in ("/skip", "skip") else text.strip()
             QuizService.set_description(db, user.id, description)
             await chat.send_message(
                 text=t("newquiz_first_question_prompt"),
@@ -264,7 +292,7 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
             await chat.send_message(
                 text="⚖️ *Choose the marking scheme for this quiz:*\n\n"
                      "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
-                     "• *📝 General Marking*: +1 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *🏥 NORCET Marking*: +1 Correct, -0.33 Wrong, 0 Skipped\n"
                      "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=get_marking_reply_keyboard()
@@ -294,6 +322,46 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
 async def handle_quiz_share_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /quiz <CODE> command."""
     await handle_creation_text(update, context)
+
+
+async def handle_skip_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /skip command for quiz description or editing."""
+    user = update.effective_user
+    chat = update.effective_chat
+    if not user or not chat:
+        return
+
+    bot_user = await context.bot.get_me()
+    bot_username = (bot_user.username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
+
+    # 1. Check if user is editing an existing quiz description
+    if context.user_data.get("editing_field") == "desc":
+        quiz_code = context.user_data.pop("editing_quiz_code", None)
+        context.user_data.pop("editing_field", None)
+        if quiz_code:
+            from app.database.repositories.quiz_repo import QuizRepository
+            with get_db() as db:
+                quiz = QuizRepository.get_by_code(db, quiz_code)
+                if quiz and quiz.creator.telegram_id == user.id:
+                    quiz.description = None
+                    db.commit()
+                    db.refresh(quiz)
+                    await chat.send_message("✅ Description cleared!")
+                    await send_published_quiz_summary(chat, quiz, bot_username)
+                    return
+
+    # 2. Check if user is in quiz creation flow at WAITING_DESCRIPTION
+    with get_db() as db:
+        quiz, state = QuizService.get_active_draft_state(db, user.id)
+        if quiz and state == "WAITING_DESCRIPTION":
+            QuizService.set_description(db, user.id, None)
+            await chat.send_message(
+                text=t("newquiz_first_question_prompt"),
+                reply_markup=get_create_question_keyboard()
+            )
+            return
+
+    await chat.send_message("Nothing to skip right now.")
 
 
 async def handle_prequestion_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

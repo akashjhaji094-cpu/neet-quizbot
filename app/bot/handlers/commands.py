@@ -1,6 +1,5 @@
-"""Bot command handlers."""
-
-from telegram import Update
+from pathlib import Path
+from telegram import Update, LinkPreviewOptions
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from app.config import settings
@@ -13,11 +12,17 @@ from app.bot.keyboards.inline import (
     get_start_keyboard,
     get_timer_keyboard,
     get_quiz_intro_keyboard,
-    get_quiz_item_keyboard
+    get_quiz_item_keyboard,
+    get_support_keyboard
 )
 from app.bot.keyboards.reply import get_remove_keyboard, get_timer_reply_keyboard
 from app.utils.localization import t
 from app.utils.logger import logger
+
+
+def format_mark(val: float) -> str:
+    """Format float mark cleanly (e.g. 4, -1, -0.33)."""
+    return str(int(val)) if float(val).is_integer() else f"{val:.2f}"
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -51,7 +56,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     f"*{quiz.title}*\n"
                     f"{desc_text}\n"
                     f"🖊 *{q_count} questions* · ⏱ *{timer_text}* per question\n"
-                    f"⚖️ Marking: *+{int(quiz.correct_marks)}* correct, *{int(quiz.wrong_marks)}* wrong\n\n"
+                    f"⚖️ Marking: *+{format_mark(quiz.correct_marks)}* correct, *{format_mark(quiz.wrong_marks)}* wrong\n\n"
                     f"Tap the button below when you are ready!\n\n"
                     f"──────────────────\n"
                     f"{GLOBAL_PROMO_TEXT}"
@@ -59,7 +64,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 await chat.send_message(
                     text=group_text,
                     parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=get_group_ready_keyboard(quiz.quiz_code, 0)
+                    reply_markup=get_group_ready_keyboard(quiz.quiz_code, 0),
+                    link_preview_options=LinkPreviewOptions(is_disabled=True)
                 )
                 return
 
@@ -69,9 +75,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 title=quiz.title,
                 description=description,
                 count=q_count,
-                correct=int(quiz.correct_marks),
-                wrong=int(quiz.wrong_marks),
-                unattempted=int(quiz.unattempted_marks),
+                correct=format_mark(quiz.correct_marks),
+                wrong=format_mark(quiz.wrong_marks),
+                unattempted=format_mark(quiz.unattempted_marks),
                 timer=timer_text
             )
             intro_text = f"{intro_text}\n\n──────────────────\n{GLOBAL_PROMO_TEXT}"
@@ -82,7 +88,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await chat.send_message(
             text=intro_text,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_quiz_intro_keyboard(quiz.quiz_code, bot_username)
+            reply_markup=get_quiz_intro_keyboard(quiz.quiz_code, bot_username),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         return
 
@@ -99,10 +106,35 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     bot_username = bot_user.username or "akaxxh_bot"
 
     welcome_text = t("start_welcome")
-    await chat.send_message(
-        text=welcome_text,
-        reply_markup=get_start_keyboard(bot_username)
-    )
+    start_img_path = Path("app/assets/start_image.jpg")
+    sent = False
+    if start_img_path.exists():
+        try:
+            with open(start_img_path, "rb") as f:
+                await chat.send_photo(
+                    photo=f,
+                    caption=welcome_text,
+                    reply_markup=get_start_keyboard(bot_username)
+                )
+            sent = True
+        except Exception as e:
+            logger.warning(f"send_photo with local asset failed: {e}")
+
+    if not sent:
+        try:
+            await chat.send_photo(
+                photo="https://files.catbox.moe/pchd5x.jpg",
+                caption=welcome_text,
+                reply_markup=get_start_keyboard(bot_username)
+            )
+            sent = True
+        except Exception as e:
+            logger.warning(f"send_photo with URL failed: {e}")
+            await chat.send_message(
+                text=welcome_text,
+                reply_markup=get_start_keyboard(bot_username),
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
+            )
 
 
 async def newquiz_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -246,8 +278,8 @@ async def quizzes_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             title=q.title,
             count=q_count,
             timer=timer_str,
-            correct=int(q.correct_marks),
-            wrong=int(q.wrong_marks),
+            correct=format_mark(q.correct_marks),
+            wrong=format_mark(q.wrong_marks),
             status=q.status
         )
         await chat.send_message(
@@ -311,7 +343,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Handle /help command."""
     chat = update.effective_chat
     if chat:
-        await chat.send_message(t("help_text"))
+        await chat.send_message(
+            text=t("help_text"),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_support_keyboard(),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
+
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /support command."""
+    chat = update.effective_chat
+    if chat:
+        await chat.send_message(
+            text=t("support_text"),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_support_keyboard(),
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
 
 
 async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

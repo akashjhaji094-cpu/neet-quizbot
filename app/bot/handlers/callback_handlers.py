@@ -100,7 +100,7 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
             await query.edit_message_text(
                 text="⚖️ *Choose the marking scheme for this quiz:*\n\n"
                      "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
-                     "• *📝 General Marking*: +1 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *🏥 NORCET Marking*: +1 Correct, -0.33 Wrong, 0 Skipped\n"
                      "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=get_marking_keyboard()
@@ -144,9 +144,188 @@ async def handle_callback_query(update: Update, context: ContextTypes.DEFAULT_TY
         await send_published_quiz_summary(chat, quiz, bot_username)
         return
 
-    # 3c. Edit Quiz
+    # 3c. Edit Quiz Menu & Actions
     elif data.startswith("edit_quiz:"):
-        await query.answer("✏️ To edit this quiz or create a new one, send /newquiz.", show_alert=True)
+        quiz_code = data.split(":", 1)[1]
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if not quiz:
+                await query.answer("Quiz not found.", show_alert=True)
+                return
+            if quiz.creator.telegram_id != user.id:
+                await query.answer("You can only edit your own quizzes.", show_alert=True)
+                return
+
+        from app.bot.keyboards.inline import get_edit_quiz_keyboard
+        try:
+            await query.edit_message_text(
+                text=f"⚙️ *Edit Quiz Settings*\n\nQuiz: *{quiz.title}*\n\nSelect what you want to edit:",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_edit_quiz_keyboard(quiz_code)
+            )
+        except Exception:
+            await chat.send_message(
+                text=f"⚙️ *Edit Quiz Settings*\n\nQuiz: *{quiz.title}*\n\nSelect what you want to edit:",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_edit_quiz_keyboard(quiz_code)
+            )
+        return
+
+    elif data.startswith("edit_title:"):
+        quiz_code = data.split(":", 1)[1]
+        context.user_data["editing_quiz_code"] = quiz_code
+        context.user_data["editing_field"] = "title"
+        await chat.send_message("📝 *Please send the new title for your quiz:*", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    elif data.startswith("edit_desc:"):
+        quiz_code = data.split(":", 1)[1]
+        context.user_data["editing_quiz_code"] = quiz_code
+        context.user_data["editing_field"] = "desc"
+        await chat.send_message("📄 *Please send the new description for your quiz (or send /skip to remove description):*", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    elif data.startswith("edit_timer:"):
+        quiz_code = data.split(":", 1)[1]
+        from app.bot.keyboards.inline import get_edit_timer_keyboard
+        try:
+            await query.edit_message_text(
+                text="⏱ *Select a new timer per question:*",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_edit_timer_keyboard(quiz_code)
+            )
+        except Exception:
+            pass
+        return
+
+    elif data.startswith("ed_tm:"):
+        parts = data.split(":")
+        quiz_code = parts[1]
+        seconds = int(parts[2])
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if quiz and quiz.creator.telegram_id == user.id:
+                quiz.timer_seconds = seconds
+                db.commit()
+                db.refresh(quiz)
+                timer_display = f"{seconds} seconds" if seconds > 0 else "No Timer"
+                await query.answer(f"Timer set to {timer_display}!")
+                try:
+                    await query.message.delete()
+                except Exception:
+                    pass
+                from app.bot.handlers.creation_handlers import send_published_quiz_summary
+                await send_published_quiz_summary(chat, quiz, bot_username)
+        return
+
+    elif data.startswith("edit_shuffle:"):
+        quiz_code = data.split(":", 1)[1]
+        from app.bot.keyboards.inline import get_edit_shuffle_keyboard
+        try:
+            await query.edit_message_text(
+                text="🔀 *Select shuffle settings for this quiz:*",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_edit_shuffle_keyboard(quiz_code)
+            )
+        except Exception:
+            pass
+        return
+
+    elif data.startswith("ed_sh:"):
+        parts = data.split(":")
+        quiz_code = parts[1]
+        mode = parts[2]
+        shuffle_q = mode in ("all", "questions")
+        shuffle_opt = mode in ("all", "options")
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if quiz and quiz.creator.telegram_id == user.id:
+                quiz.shuffle_questions = shuffle_q
+                quiz.shuffle_options = shuffle_opt
+                db.commit()
+                db.refresh(quiz)
+                await query.answer("Shuffle settings updated!")
+                try:
+                    await query.message.delete()
+                except Exception:
+                    pass
+                from app.bot.handlers.creation_handlers import send_published_quiz_summary
+                await send_published_quiz_summary(chat, quiz, bot_username)
+        return
+
+    elif data.startswith("edit_marking:"):
+        quiz_code = data.split(":", 1)[1]
+        from app.bot.keyboards.inline import get_edit_marking_keyboard
+        try:
+            await query.edit_message_text(
+                text="⚖️ *Choose a new marking scheme for this quiz:*\n\n"
+                     "• *🎯 NEET Marking*: +4 Correct, -1 Wrong, 0 Skipped\n"
+                     "• *🏥 NORCET Marking*: +1 Correct, -0.33 Wrong, 0 Skipped\n"
+                     "• *✅ Simple Marking*: +1 Correct, 0 Wrong, 0 Skipped",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_edit_marking_keyboard(quiz_code)
+            )
+        except Exception:
+            pass
+        return
+
+    elif data.startswith("ed_mk:"):
+        parts = data.split(":")
+        quiz_code = parts[1]
+        correct = float(parts[2])
+        wrong = float(parts[3])
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if quiz and quiz.creator.telegram_id == user.id:
+                quiz.correct_marks = correct
+                quiz.wrong_marks = wrong
+                db.commit()
+                db.refresh(quiz)
+                await query.answer("Marking scheme updated!")
+                try:
+                    await query.message.delete()
+                except Exception:
+                    pass
+                from app.bot.handlers.creation_handlers import send_published_quiz_summary
+                await send_published_quiz_summary(chat, quiz, bot_username)
+        return
+
+    elif data.startswith("del_quiz:"):
+        quiz_code = data.split(":", 1)[1]
+        from app.bot.keyboards.inline import get_delete_confirm_keyboard
+        try:
+            await query.edit_message_text(
+                text="⚠️ *Are you sure you want to delete this quiz?*\nThis action cannot be undone.",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_delete_confirm_keyboard(quiz_code)
+            )
+        except Exception:
+            pass
+        return
+
+    elif data.startswith("del_confirm:"):
+        quiz_code = data.split(":", 1)[1]
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if quiz and quiz.creator.telegram_id == user.id:
+                db.delete(quiz)
+                db.commit()
+                await query.edit_message_text("🗑 *Quiz has been deleted successfully.*", parse_mode=ParseMode.MARKDOWN)
+            else:
+                await query.answer("Could not delete quiz.", show_alert=True)
+        return
+
+    elif data.startswith("back_to_quiz:"):
+        quiz_code = data.split(":", 1)[1]
+        with get_db() as db:
+            quiz = QuizRepository.get_by_code(db, quiz_code)
+            if quiz:
+                try:
+                    await query.message.delete()
+                except Exception:
+                    pass
+                from app.bot.handlers.creation_handlers import send_published_quiz_summary
+                await send_published_quiz_summary(chat, quiz, bot_username)
         return
 
     # 4. Start Quiz Attempt (Private)
