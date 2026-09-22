@@ -1,4 +1,4 @@
-﻿"""Localization strings and translation management."""
+"""Localization strings and translation management."""
 
 from typing import Any, Dict
 
@@ -6,9 +6,10 @@ STRINGS: Dict[str, Dict[str, str]] = {
     "en": {
         "start_welcome": (
             "This bot helps you create and conduct multiple-choice quizzes.\n\n"
-            "NEET scoring:\n"
-            "✅ Correct: +4\n"
-            "❌ Wrong: -1\n"
+            "Supported Scoring:\n"
+            "🎯 NEET: +4 Correct, -1 Wrong\n"
+            "🏥 NORCET: +1 Correct, -0.33 Wrong\n"
+            "✅ Simple: +1 Correct, 0 Wrong\n"
             "⌛ Unattempted: 0"
         ),
         "btn_create_quiz": "Create New Quiz",
@@ -123,7 +124,23 @@ STRINGS: Dict[str, Dict[str, str]] = {
         ),
         "question_timeout": "⌛ Time's up! Moving to the next question...",
         "not_authorized": "You are not authorized to perform this action.",
-        "quiz_not_found": "Sorry, this quiz could not be found or is no longer available."
+        "quiz_not_found": "Sorry, this quiz could not be found or is no longer available.",
+        "help_text": (
+            "ℹ️ *Need Help with QuizBot?*\n\n"
+            "• Create a new quiz: /newquiz\n"
+            "• View your quizzes: /quizzes\n"
+            "• Undo last question: /undo\n"
+            "• Cancel active draft: /cancel\n"
+            "• Stop active quiz: /stop\n\n"
+            "💬 *Contact Admin for Support:* @zx_era\n"
+            "📢 *Official Updates Channel:* [SuperQuizUpdates](https://t.me/SuperQuizUpdates)"
+        ),
+        "support_text": (
+            "📢 *QuizBot Support & Community*\n\n"
+            "Join our official channel for latest updates, guides, and feature releases:\n"
+            "👉 [https://t.me/SuperQuizUpdates](https://t.me/SuperQuizUpdates)\n\n"
+            "For personal help or queries, message @zx_era"
+        )
     },
     "hi": {
         "start_welcome": (

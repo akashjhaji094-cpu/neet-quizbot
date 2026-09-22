@@ -64,7 +64,7 @@ def get_marking_reply_keyboard() -> ReplyKeyboardMarkup:
     """Bottom reply keyboard for selecting marking scheme."""
     keyboard = [
         [KeyboardButton("🎯 NEET Marking (+4 / -1)")],
-        [KeyboardButton("📝 General Marking (+1 / -1)")],
+        [KeyboardButton("🏥 NORCET Marking (+1 / -0.33)")],
         [KeyboardButton("✅ Simple Marking (+1 / 0)")]
     ]
     return ReplyKeyboardMarkup(

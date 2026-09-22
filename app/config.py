@@ -19,8 +19,8 @@ class Settings(BaseSettings):
     WEBHOOK_URL: Optional[str] = None
     PORT: int = 8000
     ADMIN_USER_IDS: List[int] = []
-    OWNER_USERNAME: Optional[str] = None
-    SUPPORT_URL: Optional[str] = None
+    OWNER_USERNAME: Optional[str] = "zx_era"
+    SUPPORT_URL: Optional[str] = "https://t.me/SuperQuizUpdates"
     DEFAULT_LANGUAGE: str = "en"
     ENVIRONMENT: str = "development"
     DEBUG: bool = False
