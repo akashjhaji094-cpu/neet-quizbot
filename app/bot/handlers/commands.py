@@ -49,7 +49,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             # If inside a Telegram Group / Supergroup
             if chat.type in ["group", "supergroup"]:
                 from app.bot.keyboards.inline import get_group_ready_keyboard
-                from app.utils.branding import GLOBAL_PROMO_TEXT
                 desc_text = f"\n{quiz.description}\n" if quiz.description else ""
                 group_text = (
                     f"🎲 *Get ready for the quiz:*\n"
@@ -57,9 +56,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     f"{desc_text}\n"
                     f"🖊 *{q_count} questions* · ⏱ *{timer_text}* per question\n"
                     f"⚖️ Marking: *+{format_mark(quiz.correct_marks)}* correct, *{format_mark(quiz.wrong_marks)}* wrong\n\n"
-                    f"Tap the button below when you are ready!\n\n"
-                    f"──────────────────\n"
-                    f"{GLOBAL_PROMO_TEXT}"
+                    f"Tap the button below when you are ready!"
                 )
                 await chat.send_message(
                     text=group_text,
@@ -69,7 +66,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 )
                 return
 
-            from app.utils.branding import GLOBAL_PROMO_TEXT
             intro_text = t(
                 "participant_quiz_intro",
                 title=quiz.title,
@@ -80,7 +76,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 unattempted=format_mark(quiz.unattempted_marks),
                 timer=timer_text
             )
-            intro_text = f"{intro_text}\n\n──────────────────\n{GLOBAL_PROMO_TEXT}"
 
         bot_user = await context.bot.get_me()
         bot_username = bot_user.username or "akaxxh_bot"

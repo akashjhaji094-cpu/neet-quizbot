@@ -172,9 +172,7 @@ async def handle_creation_text(update: Update, context: ContextTypes.DEFAULT_TYP
                 card_text = (
                     f"🎲 *Quiz '{quiz.title}'*{answered_str}\n\n"
                     f"{desc_text}"
-                    f"🖊 *{q_count} questions* · ⏱ *{timer_text}*\n\n"
-                    f"──────────────────\n"
-                    f"{GLOBAL_PROMO_TEXT}"
+                    f"🖊 *{q_count} questions* · ⏱ *{timer_text}*"
                 )
                 keyboard = [
                     [InlineKeyboardButton("Start this quiz", url=f"https://t.me/{bot_username}?start=quiz_{quiz.quiz_code}")],
