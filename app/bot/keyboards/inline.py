@@ -11,7 +11,7 @@ from app.config import settings
 def get_start_keyboard(bot_username: str = "", lang: str = "en") -> InlineKeyboardMarkup:
     """Home /start inline menu matching the requested UI layout."""
     clean_bot = (bot_username or settings.BOT_USERNAME or "akaxxh_bot").lstrip("@")
-    owner_username = (settings.OWNER_USERNAME or "zx_era").lstrip("@")
+    owner_username = (settings.OWNER_USERNAME or "akaxxh").lstrip("@")
     owner_link = f"https://t.me/{owner_username}"
     support_link = settings.SUPPORT_URL or "https://t.me/SuperQuizUpdates"
 
@@ -19,7 +19,7 @@ def get_start_keyboard(bot_username: str = "", lang: str = "en") -> InlineKeyboa
         [InlineKeyboardButton("Add this bot to your group", url=f"https://t.me/{clean_bot}?startgroup=true")],
         [InlineKeyboardButton("Create New Quiz", callback_data="cmd:newquiz")],
         [
-            InlineKeyboardButton("Owner", url=owner_link),
+            InlineKeyboardButton("Bot Maker", url=owner_link),
             InlineKeyboardButton("Help", callback_data="cmd:help")
         ],
         [InlineKeyboardButton("Support", url=support_link)]
@@ -192,7 +192,7 @@ def get_support_keyboard() -> InlineKeyboardMarkup:
     """Keyboard for /support command."""
     keyboard = [
         [InlineKeyboardButton("📢 Join Support Channel", url="https://t.me/SuperQuizUpdates")],
-        [InlineKeyboardButton("💬 Contact Support", url="https://t.me/zx_era")]
+        [InlineKeyboardButton("💬 Contact Bot Maker", url="https://t.me/akaxxh")]
     ]
     return InlineKeyboardMarkup(keyboard)
 

@@ -4,11 +4,10 @@ from app.utils.branding import GLOBAL_PROMO_TEXT, get_promo_keyboard_row, PROMO_
 
 
 def test_branding_content():
-    """Verify promo text contains required links, channels, and highlights."""
-    assert "neetverse.site" in GLOBAL_PROMO_TEXT
-    assert "t.me/neet" in GLOBAL_PROMO_TEXT
-    assert "NEET 2027/28" in GLOBAL_PROMO_TEXT
-    assert "AI-Based CBT Tests" in GLOBAL_PROMO_TEXT
+    """Verify promo text in message cards is disabled so messages stay clean."""
+    assert GLOBAL_PROMO_TEXT == ""
+    assert "neetverse.site" in PROMO_SITE_URL
+    assert "t.me/neet" in PROMO_CHANNEL_URL
 
 
 def test_branding_keyboards():
