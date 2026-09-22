@@ -71,9 +71,7 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
             message_text = (
                 f"🎲 *Quiz '{quiz.title}'*{answered_str}\n\n"
                 f"{desc_text}"
-                f"🖊 *{q_count} questions* · ⏱ *{timer_text}*\n\n"
-                f"──────────────────\n"
-                f"{GLOBAL_PROMO_TEXT}"
+                f"🖊 *{q_count} questions* · ⏱ *{timer_text}*"
             )
 
             # Keyboard matching Image 1 with promo buttons:

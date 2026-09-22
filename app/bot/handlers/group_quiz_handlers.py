@@ -146,8 +146,6 @@ async def send_group_leaderboard(
     from app.utils.branding import GLOBAL_PROMO_TEXT, get_promo_keyboard_row
 
     lines.append(f"👥 Total Participants: {total_participants}\n")
-    lines.append("──────────────────")
-    lines.append(GLOBAL_PROMO_TEXT)
     leaderboard_text = "\n".join(lines)
 
     await context.bot.send_message(

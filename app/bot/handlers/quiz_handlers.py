@@ -160,9 +160,6 @@ async def send_quiz_results(
             percentage=score_res.percentage
         )
 
-        from app.utils.branding import GLOBAL_PROMO_TEXT
-        card_text = f"{card_text}\n\n──────────────────\n{GLOBAL_PROMO_TEXT}"
-
         quiz_code = quiz.quiz_code
 
     await context.bot.send_message(
